@@ -12,7 +12,6 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 interface TeacherAbsence {
   id: string;
@@ -32,7 +31,7 @@ const FALLBACK_ABSENCES: TeacherAbsence[] = [
     date: '2026-09-06',
     periods: [2, 3, 7],
     room: 'Room 234',
-    notes: 'AP Physics C - Report to Upper Cafe for independent study hall. Practice problem sets posted on Schoology.',
+    notes: 'AP Physics C - Report to Upper Cafe for study hall. Practice problem sets posted on Schoology.',
   },
   {
     id: 'abs-2',
@@ -59,7 +58,7 @@ const FALLBACK_ABSENCES: TeacherAbsence[] = [
     date: '2026-09-06',
     periods: [6, 7],
     room: 'Room 205',
-    notes: 'US History II - Upper Cafe study hall. Readings on primary source documents on Schoology.',
+    notes: 'US History II - Upper Cafe study hall. Primary source readings on Schoology.',
   },
   {
     id: 'abs-5',
@@ -72,14 +71,8 @@ const FALLBACK_ABSENCES: TeacherAbsence[] = [
   },
 ];
 
-const GOLD = '#C5B358';
-const GOLD_LIGHT = '#E5D68A';
-const GOLD_DARK = '#7A6B25';
-const DARK_BG = '#0B0E14';
-const CARD_BG = '#151B23';
-const CARD_BORDER = '#262F3D';
-const TEXT_PRIMARY = '#F0F6FC';
-const TEXT_MUTED = '#8B949E';
+const currentYear = new Date().getFullYear();
+const copyrightNotice = currentYear === 2026 ? '© 2026 Kabir Sekhon' : `© 2026-${currentYear} Kabir Sekhon`;
 
 export default function App() {
   const [absences, setAbsences] = useState<TeacherAbsence[]>(FALLBACK_ABSENCES);
@@ -87,14 +80,12 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherAbsence | null>(null);
-  const [infoModalVisible, setInfoModalVisible] = useState(false);
 
   const fetchAbsencesData = useCallback(async () => {
     try {
-      // In iOS simulator / emulator, localhost or 10.0.2.2 can be used
       const host = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       const res = await fetch(`http://${host}:4000/api/absences`, {
         signal: controller.signal,
@@ -108,7 +99,7 @@ export default function App() {
         }
       }
     } catch (_err) {
-      // Offline fallback: keep fallback absences
+      // offline fallback
     }
   }, []);
 
@@ -122,7 +113,6 @@ export default function App() {
     setRefreshing(false);
   }, [fetchAbsencesData]);
 
-  // Filter absences by period and search text
   const filtered = absences.filter((item) => {
     const matchesPeriod = selectedPeriod === 'ALL' || item.periods.includes(selectedPeriod);
     const q = searchQuery.toLowerCase().trim();
@@ -130,294 +120,179 @@ export default function App() {
       q === '' ||
       item.teacherName.toLowerCase().includes(q) ||
       item.department.toLowerCase().includes(q) ||
-      (item.room && item.room.toLowerCase().includes(q)) ||
-      (item.notes && item.notes.toLowerCase().includes(q));
+      (item.room && item.room.toLowerCase().includes(q));
     return matchesPeriod && matchesSearch;
   });
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={DARK_BG} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Apple-style Navigation Bar */}
-      <View style={styles.navbar}>
-        <View style={styles.navLeft}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>BCA</Text>
+      {/* Clean Light Header */}
+      <View style={styles.header}>
+        <View>
+          <View style={styles.titleRow}>
+            <Text style={styles.headerTitle}>BCA Upper Cafe</Text>
+            <View style={styles.bcaTag}>
+              <Text style={styles.bcaTagText}>Absences</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.navTitle}>Upper Cafe</Text>
-            <Text style={styles.navSubtitle}>Teacher Absence Board</Text>
-          </View>
+          <Text style={styles.headerSubtitle}>Daily Teacher Absence Directory</Text>
         </View>
-
-        <TouchableOpacity
-          onPress={() => setInfoModalVisible(true)}
-          style={styles.infoButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="information-circle-outline" size={24} color={GOLD} />
-        </TouchableOpacity>
       </View>
 
+      {/* Notice Banner */}
+      <View style={styles.noticeBanner}>
+        <Text style={styles.noticeText}>
+          Classes with absent teachers report to Upper Cafe. Note: check-in is done on laptops via{' '}
+          <Text style={{ fontWeight: '700', color: '#0F172A' }}>app.bcaupper.cafe</Text>
+        </Text>
+      </View>
+
+      {/* Search Input */}
+      <View style={styles.searchWrapper}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by teacher name or department..."
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      {/* Period Filter Bar */}
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.periodScroll}
+        contentContainerStyle={styles.periodContent}
+      >
+        <TouchableOpacity
+          style={[styles.periodPill, selectedPeriod === 'ALL' && styles.periodPillActive]}
+          onPress={() => setSelectedPeriod('ALL')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.periodPillText, selectedPeriod === 'ALL' && styles.periodPillTextActive]}>
+            All Periods
+          </Text>
+        </TouchableOpacity>
+
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((p) => {
+          const isActive = selectedPeriod === p;
+          return (
+            <TouchableOpacity
+              key={p}
+              style={[styles.periodPill, isActive && styles.periodPillActive]}
+              onPress={() => setSelectedPeriod(p)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.periodPillText, isActive && styles.periodPillTextActive]}>
+                Period {p}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Absence Rows List */}
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={GOLD}
-            colors={[GOLD]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0F172A" />
         }
       >
-        {/* Notion / Google Doc style Callout Banner */}
-        <View style={styles.notionCallout}>
-          <Text style={styles.notionCalloutEmoji}>💡</Text>
-          <View style={styles.notionCalloutContent}>
-            <Text style={styles.notionCalloutTitle}>Daily Attendance Policy</Text>
-            <Text style={styles.notionCalloutText}>
-              Teacher absent? Report directly to Upper Cafe for study hall. Please note that mobile check-in is disabled — use{' '}
-              <Text style={{ color: GOLD, fontWeight: '700' }}>app.bcaupper.cafe</Text> on your laptop or the kiosk terminal.
-            </Text>
-          </View>
-        </View>
-
-        {/* Search Bar with Apple Glass feel */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={17} color={TEXT_MUTED} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search teacher, subject, room..."
-            placeholderTextColor={TEXT_MUTED}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            clearButtonMode="while-editing"
-          />
-          {searchQuery.length > 0 && Platform.OS === 'android' && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={18} color={TEXT_MUTED} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Period Filter Segmented Pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.periodScroll}
-          contentContainerStyle={styles.periodContent}
-        >
-          <TouchableOpacity
-            style={[
-              styles.periodPill,
-              selectedPeriod === 'ALL' && styles.periodPillActive,
-            ]}
-            onPress={() => setSelectedPeriod('ALL')}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.periodPillText,
-                selectedPeriod === 'ALL' && styles.periodPillTextActive,
-              ]}
-            >
-              All Periods
-            </Text>
-          </TouchableOpacity>
-
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((p) => {
-            const isActive = selectedPeriod === p;
-            return (
-              <TouchableOpacity
-                key={p}
-                style={[styles.periodPill, isActive && styles.periodPillActive]}
-                onPress={() => setSelectedPeriod(p)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.periodPillText,
-                    isActive && styles.periodPillTextActive,
-                  ]}
-                >
-                  Period {p}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Section Header */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeaderTitle}>
-            {selectedPeriod === 'ALL' ? 'All Absences Today' : `Period ${selectedPeriod} Absences`}
+        <View style={styles.listHeaderRow}>
+          <Text style={styles.listHeaderText}>
+            {selectedPeriod === 'ALL' ? 'Today\'s Absences' : `Period ${selectedPeriod} Absences`}
           </Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{filtered.length} Teachers</Text>
-          </View>
+          <Text style={styles.countText}>{filtered.length} Teachers</Text>
         </View>
 
-        {/* Absences List - Notion / Google Doc Card Format */}
         {filtered.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="checkmark-done-circle-outline" size={48} color={TEXT_MUTED} />
-            <Text style={styles.emptyStateTitle}>No Absences Listed</Text>
-            <Text style={styles.emptyStateText}>
-              All teachers are present or no classes are covered in Upper Cafe for this filter.
-            </Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No absences found</Text>
+            <Text style={styles.emptySubtitle}>No teachers matching this period or search.</Text>
           </View>
         ) : (
           filtered.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={styles.card}
-              activeOpacity={0.8}
+              style={styles.rowCard}
+              activeOpacity={0.7}
               onPress={() => setSelectedTeacher(item)}
             >
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.teacherName}>{item.teacherName}</Text>
-                  <Text style={styles.departmentName}>{item.department}</Text>
+              <View style={styles.rowTop}>
+                <Text style={styles.teacherName}>{item.teacherName}</Text>
+                <View style={styles.periodBadge}>
+                  <Text style={styles.periodBadgeText}>P{item.periods.join(', ')}</Text>
                 </View>
-
-                {item.room ? (
-                  <View style={styles.roomBadge}>
-                    <Ionicons name="location-outline" size={12} color={GOLD_LIGHT} />
-                    <Text style={styles.roomText}>{item.room}</Text>
-                  </View>
-                ) : null}
               </View>
 
-              {/* Period tags in Vegas Gold */}
-              <View style={styles.periodBadgesRow}>
-                {item.periods.map((p) => (
-                  <View key={p} style={styles.periodTag}>
-                    <Text style={styles.periodTagText}>Period {p}</Text>
-                  </View>
-                ))}
+              <View style={styles.rowBottom}>
+                <Text style={styles.departmentText}>{item.department}</Text>
+                {item.room ? <Text style={styles.roomText}>{item.room}</Text> : null}
               </View>
 
-              {/* Notes preview */}
               {item.notes ? (
-                <View style={styles.cardNotesBox}>
-                  <Text style={styles.cardNotesText} numberOfLines={2}>
-                    {item.notes}
-                  </Text>
-                </View>
+                <Text style={styles.notesText} numberOfLines={1}>
+                  {item.notes}
+                </Text>
               ) : null}
-
-              {/* Card Footer */}
-              <View style={styles.cardFooter}>
-                <Text style={styles.cardFooterText}>Report to Upper Cafe</Text>
-                <View style={styles.viewDetailsRow}>
-                  <Text style={styles.viewDetailsText}>Details</Text>
-                  <Ionicons name="chevron-forward" size={14} color={GOLD} />
-                </View>
-              </View>
             </TouchableOpacity>
           ))
         )}
+
+        <View style={styles.footerContainer}>
+          <Text style={styles.copyrightText}>{copyrightNotice}</Text>
+          <Text style={styles.schoolText}>Bergen County Academies</Text>
+        </View>
       </ScrollView>
 
-      {/* Teacher Detail Sheet / Modal */}
+      {/* Detail Modal */}
       <Modal
         visible={!!selectedTeacher}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => setSelectedTeacher(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalDragHandle} />
-
+          <View style={styles.modalContent}>
             {selectedTeacher && (
               <>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{selectedTeacher.teacherName}</Text>
-                  <Text style={styles.modalSubtitle}>{selectedTeacher.department}</Text>
+                <Text style={styles.modalTeacherName}>{selectedTeacher.teacherName}</Text>
+                <Text style={styles.modalDepartment}>{selectedTeacher.department}</Text>
+
+                <View style={styles.modalDetailRow}>
+                  <Text style={styles.modalDetailLabel}>Periods Absent:</Text>
+                  <Text style={styles.modalDetailValue}>
+                    {selectedTeacher.periods.map((p) => `Period ${p}`).join(', ')}
+                  </Text>
                 </View>
 
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionLabel}>AFFECTED PERIODS</Text>
-                  <View style={styles.periodBadgesRow}>
-                    {selectedTeacher.periods.map((p) => (
-                      <View key={p} style={styles.modalPeriodTag}>
-                        <Text style={styles.modalPeriodTagText}>Period {p}</Text>
-                      </View>
-                    ))}
+                {selectedTeacher.room ? (
+                  <View style={styles.modalDetailRow}>
+                    <Text style={styles.modalDetailLabel}>Classroom:</Text>
+                    <Text style={styles.modalDetailValue}>{selectedTeacher.room}</Text>
                   </View>
-                </View>
+                ) : null}
 
-                {selectedTeacher.room && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionLabel}>CLASSROOM</Text>
-                    <Text style={styles.modalValueText}>{selectedTeacher.room}</Text>
-                  </View>
-                )}
-
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionLabel}>COVERAGE & INSTRUCTIONS</Text>
-                  <View style={styles.modalNotesBox}>
-                    <Text style={styles.modalNotesText}>
-                      {selectedTeacher.notes || 'Report to Upper Cafe for independent study hall.'}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.modalFooterNotice}>
-                  <Ionicons name="laptop-outline" size={16} color={GOLD} />
-                  <Text style={styles.modalFooterNoticeText}>
-                    Check in on your laptop via app.bcaupper.cafe upon entering Upper Cafe.
+                <View style={styles.modalNotesBlock}>
+                  <Text style={styles.modalNotesLabel}>Instructions</Text>
+                  <Text style={styles.modalNotesValue}>
+                    {selectedTeacher.notes || 'Report to Upper Cafe for independent study hall.'}
                   </Text>
                 </View>
 
                 <TouchableOpacity
-                  style={styles.modalCloseButton}
+                  style={styles.modalCloseBtn}
                   onPress={() => setSelectedTeacher(null)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.modalCloseButtonText}>Done</Text>
+                  <Text style={styles.modalCloseBtnText}>Close</Text>
                 </TouchableOpacity>
               </>
             )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Info & Policy Modal */}
-      <Modal
-        visible={infoModalVisible}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setInfoModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { maxHeight: 420 }]}>
-            <View style={styles.modalDragHandle} />
-            <Text style={styles.modalTitle}>About Upper Cafe Mobile</Text>
-            <Text style={[styles.notionCalloutText, { marginTop: 12, lineHeight: 22 }]}>
-              This mobile application is built specifically for BCA students to view daily teacher absences with ease, eliminating confusing paper boards and messy Google Docs.
-            </Text>
-
-            <View style={[styles.notionCallout, { marginTop: 16 }]}>
-              <Text style={styles.notionCalloutEmoji}>📌</Text>
-              <View style={styles.notionCalloutContent}>
-                <Text style={styles.notionCalloutTitle}>Why No Mobile Check-In?</Text>
-                <Text style={styles.notionCalloutText}>
-                  Per Bergen County Academies attendance rules, study hall check-ins require kiosk or in-room laptop verification via app.bcaupper.cafe.
-                </Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.modalCloseButton, { marginTop: 24 }]}
-              onPress={() => setInfoModalVisible(false)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalCloseButtonText}>Got it</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -428,375 +303,276 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: DARK_BG,
+    backgroundColor: '#FFFFFF',
   },
-  navbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#1F2633',
-    backgroundColor: DARK_BG,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
   },
-  navLeft: {
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  logoBadge: {
-    backgroundColor: GOLD,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  logoBadgeText: {
-    color: DARK_BG,
-    fontWeight: '900',
-    fontSize: 13,
-    letterSpacing: 0.5,
-  },
-  navTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: TEXT_PRIMARY,
-    letterSpacing: -0.3,
-  },
-  navSubtitle: {
-    fontSize: 11,
-    color: TEXT_MUTED,
-    fontWeight: '500',
-  },
-  infoButton: {
-    padding: 6,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: DARK_BG,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 36,
-  },
-  notionCallout: {
-    flexDirection: 'row',
-    backgroundColor: '#12171F',
-    borderWidth: 1,
-    borderColor: '#262F3D',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 16,
-    gap: 10,
-  },
-  notionCalloutEmoji: {
-    fontSize: 18,
-    marginTop: 1,
-  },
-  notionCalloutContent: {
-    flex: 1,
-  },
-  notionCalloutTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: TEXT_PRIMARY,
-    marginBottom: 2,
-  },
-  notionCalloutText: {
-    fontSize: 11,
-    color: TEXT_MUTED,
-    lineHeight: 16,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
-    marginBottom: 14,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    color: TEXT_PRIMARY,
-    fontSize: 13,
-    paddingVertical: 0,
-  },
-  periodScroll: {
-    marginBottom: 16,
-  },
-  periodContent: {
     gap: 8,
   },
-  periodPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: CARD_BG,
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  bcaTag: {
+    backgroundColor: '#FEF3C7',
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  bcaTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  noticeBanner: {
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  noticeText: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 15,
+  },
+  searchWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  searchInput: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  periodScroll: {
+    maxHeight: 44,
+    paddingHorizontal: 16,
+    marginVertical: 4,
+  },
+  periodContent: {
+    gap: 6,
+    paddingRight: 32,
+  },
+  periodPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   periodPillActive: {
-    backgroundColor: GOLD,
-    borderColor: GOLD_DARK,
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
   },
   periodPillText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: TEXT_MUTED,
+    fontWeight: '600',
+    color: '#475569',
   },
   periodPillTextActive: {
-    color: DARK_BG,
+    color: '#FFFFFF',
   },
-  sectionHeaderRow: {
+  list: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  listHeaderRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  sectionHeaderTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: TEXT_PRIMARY,
-  },
-  countBadge: {
-    backgroundColor: '#1E2530',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: GOLD,
-  },
-  card: {
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
     marginBottom: 8,
   },
-  teacherName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: TEXT_PRIMARY,
-    letterSpacing: -0.2,
+  listHeaderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
   },
-  departmentName: {
+  countText: {
     fontSize: 12,
-    color: GOLD,
-    fontWeight: '600',
-    marginTop: 2,
+    color: '#64748B',
+    fontWeight: '500',
   },
-  roomBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0E131A',
+  rowCard: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#262F3D',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderColor: '#E2E8F0',
     borderRadius: 8,
-    gap: 4,
+    padding: 12,
+    marginBottom: 8,
+  },
+  rowTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  teacherName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  periodBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  periodBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  rowBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  departmentText: {
+    fontSize: 12,
+    color: '#64748B',
   },
   roomText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: TEXT_MUTED,
+    color: '#94A3B8',
   },
-  periodBadgesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginVertical: 6,
-  },
-  periodTag: {
-    backgroundColor: '#1F2633',
-    borderWidth: 1,
-    borderColor: '#364254',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  periodTagText: {
+  notesText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: GOLD_LIGHT,
-  },
-  cardNotesBox: {
-    backgroundColor: '#0E131A',
-    borderRadius: 8,
-    padding: 8,
+    color: '#64748B',
     marginTop: 6,
-  },
-  cardNotesText: {
-    fontSize: 11,
-    color: TEXT_MUTED,
-    lineHeight: 16,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 10,
+    paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: '#1F2633',
+    borderTopColor: '#F8FAFC',
   },
-  cardFooterText: {
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  footerContainer: {
+    marginTop: 24,
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  copyrightText: {
     fontSize: 11,
-    color: TEXT_MUTED,
+    color: '#94A3B8',
     fontWeight: '500',
   },
-  viewDetailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  viewDetailsText: {
-    fontSize: 12,
-    color: GOLD,
-    fontWeight: '700',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 48,
-    backgroundColor: '#10141C',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1F2633',
-    borderStyle: 'dashed',
-    marginTop: 8,
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: TEXT_PRIMARY,
-    marginTop: 12,
-  },
-  emptyStateText: {
-    fontSize: 12,
-    color: TEXT_MUTED,
-    textAlign: 'center',
-    marginTop: 4,
-    paddingHorizontal: 24,
+  schoolText: {
+    fontSize: 10,
+    color: '#CBD5E1',
+    marginTop: 2,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#151B23',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderColor: '#2C3442',
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    justifyContent: 'center',
     padding: 20,
-    paddingBottom: 36,
   },
-  modalDragHandle: {
-    width: 36,
-    height: 4,
-    backgroundColor: '#30363D',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  modalHeader: {
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: TEXT_PRIMARY,
-    letterSpacing: -0.3,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: GOLD,
-    marginTop: 2,
-  },
-  modalSection: {
-    marginBottom: 14,
-  },
-  modalSectionLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: TEXT_MUTED,
-    letterSpacing: 0.8,
-    marginBottom: 6,
-  },
-  modalPeriodTag: {
-    backgroundColor: GOLD,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  modalPeriodTagText: {
-    color: DARK_BG,
-    fontWeight: '800',
-    fontSize: 12,
-  },
-  modalValueText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: TEXT_PRIMARY,
-  },
-  modalNotesBox: {
-    backgroundColor: '#0B0E14',
-    borderWidth: 1,
-    borderColor: '#262F3D',
+  modalContent: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 12,
-  },
-  modalNotesText: {
-    fontSize: 13,
-    color: TEXT_PRIMARY,
-    lineHeight: 18,
-  },
-  modalFooterNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#10151E',
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#262F3D',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 4,
+    borderColor: '#E2E8F0',
+  },
+  modalTeacherName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalDepartment: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 2,
     marginBottom: 16,
   },
-  modalFooterNoticeText: {
-    fontSize: 11,
-    color: TEXT_MUTED,
-    flex: 1,
+  modalDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  modalCloseButton: {
-    backgroundColor: GOLD,
-    borderRadius: 14,
-    paddingVertical: 13,
+  modalDetailLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  modalDetailValue: {
+    fontSize: 12,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  modalNotesBlock: {
+    marginTop: 12,
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modalNotesLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  modalNotesValue: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 16,
+  },
+  modalCloseBtn: {
+    marginTop: 16,
+    backgroundColor: '#0F172A',
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: 'center',
   },
-  modalCloseButtonText: {
-    color: DARK_BG,
-    fontWeight: '800',
-    fontSize: 15,
+  modalCloseBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
 });
