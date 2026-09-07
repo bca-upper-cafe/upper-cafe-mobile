@@ -91,9 +91,8 @@ export default function App() {
   const filteredAbsences = useMemo(() => {
     return absences.filter((t) => {
       const fullName = `${t.pronoun} ${t.firstName} ${t.lastName}`.toLowerCase();
-      const dept = t.department.toLowerCase();
       const q = searchQuery.toLowerCase().trim();
-      const matchesSearch = !q || fullName.includes(q) || dept.includes(q);
+      const matchesSearch = !q || fullName.includes(q);
       if (!matchesSearch) return false;
 
       if (selectedPeriod === 'All') return true;
@@ -130,7 +129,7 @@ export default function App() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search teachers or departments..."
+              placeholder="Search teachers..."
               placeholderTextColor="#999999"
               style={styles.searchInput}
               clearButtonMode="while-editing"
@@ -196,7 +195,6 @@ export default function App() {
                   <View key={t.id} style={styles.teacherRow}>
                     <View style={styles.teacherInfo}>
                       <Text style={styles.teacherName}>{fullName}</Text>
-                      <Text style={styles.teacherDept}>{t.department}</Text>
                     </View>
 
                     <View style={styles.periodBadge}>
