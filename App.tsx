@@ -74,15 +74,107 @@ const DEFAULT_ABSENCES: TeacherAbsence[] = [
 
 const PERIOD_PILLS = ['All', '1', 'IGS', '2', '3', '4', '5', '6', '7', '8', '9'];
 
+interface ScheduleStatus {
+  hasSchool: boolean;
+  status: 'no_school' | 'not_started' | 'in_session' | 'ended';
+  period: string | null;
+  message: string;
+  date: string;
+  time: string;
+}
+
+function calculateScheduleStatus(now: Date = new Date()): ScheduleStatus {
+  const day = now.getDay();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = `${pad(now.getMonth() + 1)}/${pad(now.getDate())}/${now.getFullYear()}`;
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const currentSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+  if (day === 0 || day === 6) {
+    return {
+      hasSchool: false,
+      status: 'no_school',
+      period: null,
+      message: 'No school scheduled today (weekend).',
+      date: dateStr,
+      time: timeStr,
+    };
+  }
+
+  const schoolStart = 8 * 3600; // 08:00
+  const schoolEnd = 15 * 3600 + 46 * 60; // 15:46
+
+  if (currentSec < schoolStart) {
+    return {
+      hasSchool: true,
+      status: 'not_started',
+      period: null,
+      message: 'School has not started yet today. Period 1 begins at 8:00 AM.',
+      date: dateStr,
+      time: timeStr,
+    };
+  }
+
+  if (currentSec > schoolEnd) {
+    return {
+      hasSchool: true,
+      status: 'ended',
+      period: null,
+      message: 'School has concluded for today.',
+      date: dateStr,
+      time: timeStr,
+    };
+  }
+
+  // Periods: 1 (08:00-08:43), IGS (08:47-09:30), 2 (09:34-10:17), 3 (10:21-11:04), 4 (11:08-11:51),
+  // 5 (11:55-12:38), 6 (12:42-13:25), 7 (13:29-14:12), 8 (14:16-14:59), 9 (15:03-15:46)
+  const periods = [
+    { p: '1', start: 8 * 3600, end: 8 * 3600 + 43 * 60 },
+    { p: 'IGS', start: 8 * 3600 + 47 * 60, end: 9 * 3600 + 30 * 60 },
+    { p: '2', start: 9 * 3600 + 34 * 60, end: 10 * 3600 + 17 * 60 },
+    { p: '3', start: 10 * 3600 + 21 * 60, end: 11 * 3600 + 4 * 60 },
+    { p: '4', start: 11 * 3600 + 8 * 60, end: 11 * 3600 + 51 * 60 },
+    { p: '5', start: 11 * 3600 + 55 * 60, end: 12 * 3600 + 38 * 60 },
+    { p: '6', start: 12 * 3600 + 42 * 60, end: 13 * 3600 + 25 * 60 },
+    { p: '7', start: 13 * 3600 + 29 * 60, end: 14 * 3600 + 12 * 60 },
+    { p: '8', start: 14 * 3600 + 16 * 60, end: 14 * 3600 + 59 * 60 },
+    { p: '9', start: 15 * 3600 + 3 * 60, end: 15 * 3600 + 46 * 60 },
+  ];
+
+  for (const item of periods) {
+    if (currentSec >= item.start && currentSec <= item.end) {
+      return {
+        hasSchool: true,
+        status: 'in_session',
+        period: item.p,
+        message: `Currently Period ${item.p}`,
+        date: dateStr,
+        time: timeStr,
+      };
+    }
+  }
+
+  return {
+    hasSchool: true,
+    status: 'in_session',
+    period: 'Passing',
+    message: 'Passing Period',
+    date: dateStr,
+    time: timeStr,
+  };
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'attendance' | 'settings'>('attendance');
   const [absences, setAbsences] = useState<TeacherAbsence[]>(DEFAULT_ABSENCES);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [scheduleStatus, setScheduleStatus] = useState<ScheduleStatus>(() => calculateScheduleStatus());
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    setScheduleStatus(calculateScheduleStatus());
     setTimeout(() => {
       setRefreshing(false);
     }, 400);
@@ -121,90 +213,115 @@ export default function App() {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Teacher Attendance</Text>
-            <Text style={styles.headerSubtitle}>Live list of absent teachers.</Text>
+            <Text style={styles.headerSubtitle}>
+              {scheduleStatus.status === 'in_session' && scheduleStatus.period
+                ? `Currently Period ${scheduleStatus.period} · Live list of absent teachers.`
+                : 'Live list of absent teachers.'}
+            </Text>
           </View>
 
-          {/* Search Bar matching web app */}
-          <View style={styles.searchContainer}>
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search teachers..."
-              placeholderTextColor="#999999"
-              style={styles.searchInput}
-              clearButtonMode="while-editing"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          {/* Period Filter Tabs (Underline indicator matching web app) */}
-          <View style={styles.tabsStrip}>
+          {scheduleStatus.status !== 'in_session' ? (
+            /* Out of session: replace content entirely, no status badges or clutter */
             <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabsScroll}
+              style={styles.list}
+              contentContainerStyle={styles.outOfSessionContainer}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#111111"
+                />
+              }
             >
-              {PERIOD_PILLS.map((p) => {
-                const isSelected = selectedPeriod === p;
-                return (
-                  <TouchableOpacity
-                    key={p}
-                    onPress={() => setSelectedPeriod(p)}
-                    activeOpacity={0.7}
-                    style={[
-                      styles.periodTab,
-                      isSelected && styles.periodTabSelected,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.periodTabText,
-                        isSelected && styles.periodTabTextSelected,
-                      ]}
-                    >
-                      {p === 'All' ? 'All' : p === 'IGS' ? 'IGS' : `P${p}`}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <Text style={styles.outOfSessionTitle}>School is not currently in session</Text>
+              <Text style={styles.outOfSessionSubtitle}>{scheduleStatus.message}</Text>
+              <Text style={styles.outOfSessionFootnote}>
+                Teacher attendance updates resume during regular school hours.
+              </Text>
             </ScrollView>
-          </View>
-
-          {/* Teacher List matching web app rows */}
-          <ScrollView
-            style={styles.list}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#111111"
-              />
-            }
-          >
-            {filteredAbsences.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No absent teachers reported.</Text>
+          ) : (
+            <>
+              {/* Search Bar matching web app */}
+              <View style={styles.searchContainer}>
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search teachers..."
+                  placeholderTextColor="#999999"
+                  style={styles.searchInput}
+                  clearButtonMode="while-editing"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
               </View>
-            ) : (
-              filteredAbsences.map((t) => {
-                const fullName = `${t.pronoun} ${t.firstName} ${t.lastName}`;
-                const badgeText = t.isAllDay ? 'All Day' : `P${t.periods.join(', ')}`;
 
-                return (
-                  <View key={t.id} style={styles.teacherRow}>
-                    <View style={styles.teacherInfo}>
-                      <Text style={styles.teacherName}>{fullName}</Text>
-                    </View>
+              {/* Period Filter Tabs (Underline indicator matching web app) */}
+              <View style={styles.tabsStrip}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.tabsScroll}
+                >
+                  {PERIOD_PILLS.map((p) => {
+                    const isSelected = selectedPeriod === p;
+                    return (
+                      <TouchableOpacity
+                        key={p}
+                        onPress={() => setSelectedPeriod(p)}
+                        activeOpacity={0.7}
+                        style={[
+                          styles.periodTab,
+                          isSelected && styles.periodTabSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.periodTabText,
+                            isSelected && styles.periodTabTextSelected,
+                          ]}
+                        >
+                          {p === 'All' ? 'All' : p === 'IGS' ? 'IGS' : `P${p}`}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
 
-                    <View style={styles.periodBadge}>
-                      <Text style={styles.periodBadgeText}>{badgeText}</Text>
-                    </View>
+              {/* Teacher List matching web app rows */}
+              <ScrollView
+                style={styles.list}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor="#111111"
+                  />
+                }
+              >
+                {filteredAbsences.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No absent teachers reported.</Text>
                   </View>
-                );
-              })
-            )}
-          </ScrollView>
+                ) : (
+                  filteredAbsences.map((t) => {
+                    const fullName = `${t.pronoun} ${t.firstName} ${t.lastName}`;
+                    const badgeText = t.isAllDay ? 'All Day' : `P${t.periods.join(', ')}`;
+
+                    return (
+                      <View key={t.id} style={styles.teacherRow}>
+                        <View style={styles.teacherInfo}>
+                          <Text style={styles.teacherName}>{fullName}</Text>
+                        </View>
+
+                        <Text style={styles.periodText}>{badgeText}</Text>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </>
+          )}
         </View>
       ) : (
         /* ========================================================================= */
@@ -334,6 +451,30 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginTop: 2,
   },
+  outOfSessionContainer: {
+    paddingVertical: 80,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+  },
+  outOfSessionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111111',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  outOfSessionSubtitle: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  outOfSessionFootnote: {
+    fontSize: 12,
+    color: '#888888',
+    textAlign: 'center',
+  },
   searchContainer: {
     paddingHorizontal: 20,
     paddingBottom: 10,
@@ -409,16 +550,10 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginTop: 2,
   },
-  periodBadge: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  periodBadgeText: {
+  periodText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#111111',
+    color: '#666666',
   },
   // Tab Bar Styles (Icons only, no text)
   tabBar: {
